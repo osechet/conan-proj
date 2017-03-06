@@ -1,4 +1,3 @@
-build
+.history
 *.pyc
-conanbuildinfo.cmake
-conaninfo.txt
+test_package/build

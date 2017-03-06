@@ -6,8 +6,8 @@ environment:
 
     CONAN_UPLOAD: 1
     CONAN_REFERENCE: "proj/4.9.2"
-    CONAN_USERNAME: "bilke"
-    CONAN_CHANNEL: "ci"
+    CONAN_USERNAME: "osechet"
+    CONAN_CHANNEL: "stable"
     CONAN_TOTAL_PAGES: 1
 
     matrix:

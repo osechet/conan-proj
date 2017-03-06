@@ -1,6 +1,7 @@
+
 import os
-from conans import ConanFile, CMake
-from conans.tools import download, unzip, patch
+from conans import ConanFile, AutoToolsBuildEnvironment, tools
+from conans.tools import download, unzip
 
 class ProjConan(ConanFile):
     name = "proj"
@@ -8,57 +9,45 @@ class ProjConan(ConanFile):
     generators = "cmake"
     settings = "os", "compiler", "build_type", "arch"
     options = {"shared": [True, False]}
-    default_options = "shared=False"
-    exports = ["CMakeLists.txt", "FindPROJ4.cmake"]
-    url="http://github.com/bilke/conan-proj"
-    license="https://github.com/OSGeo/proj.4"
+    default_options = "shared=True"
+    exports = ["FindProj.cmake"]
+    url = "http://github.com/bilke/conan-proj"
+    license = "https://github.com/OSGeo/proj.4"
 
     ZIP_FOLDER_NAME = "proj.4-%s" % version
     INSTALL_DIR = "_install"
 
     def source(self):
         zip_name = self.version + ".zip"
-        download("https://github.com/OSGeo/proj.4/archive/%s" % zip_name , zip_name)
+        download("https://github.com/OSGeo/proj.4/archive/%s" % zip_name, zip_name)
         unzip(zip_name)
         os.unlink(zip_name)
 
+        datum = "proj-datumgrid-1.5.zip"
+        download("http://download.osgeo.org/proj/%s" % datum, datum)
+        unzip(datum, "%s/nad" % self.ZIP_FOLDER_NAME)
+        os.unlink(datum)
+
     def build(self):
-        # produced with `diff -U 1 -p Proj4Config.cmake tmp.cmake`
-        patch_content1 = '''--- cmake/Proj4Config.cmake	2016-04-25 09:27:06.000000000 +0200
-+++ cmake/Proj4Config.cmake	2016-04-25 09:27:02.000000000 +0200
-@@ -38,2 +38,2 @@ set(PACKAGE_VERSION "${${PROJECT_INTERN_
+        env_build = AutoToolsBuildEnvironment(self)
+        with tools.environment_append(env_build.vars):
+            config_args = ["--prefix %s" % self.package_folder]
 
--configure_file(cmake/proj_config.cmake.in src/proj_config.h)
-+configure_file(${PROJ4_SOURCE_DIR}/cmake/proj_config.cmake.in ${CMAKE_SOURCE_DIR}/_build/%s/src/proj_config.h)
-''' % self.ZIP_FOLDER_NAME
-        patch(patch_string=patch_content1, base_path=self.ZIP_FOLDER_NAME)
-        patch_content2 = '''--- cmake/Proj4InstallPath.cmake	2016-04-25 09:27:06.000000000 +0200
-+++ cmake/Proj4InstallPath.cmake	2016-04-25 09:28:02.000000000 +0200
-@@ -24,3 +24,3 @@ ENDIF(CMAKE_INSTALL_PREFIX_INITIALIZED_T
+            if self.options.shared:
+                config_args += ["--enable-shared=yes", "--enable-static=no"]
+            else:
+                config_args += ["--enable-shared=no", "--enable-static=yes"]
+            if self.settings.os != "Windows":
+                self.run("chmod +x %s/configure" % self.ZIP_FOLDER_NAME)
+                self.run("chmod +x %s/install-sh" % self.ZIP_FOLDER_NAME)
 
--if(WIN32)
-+if(FALSE)
-   set(DEFAULT_BIN_SUBDIR bin)
-'''
-        patch(patch_string=patch_content2, base_path=self.ZIP_FOLDER_NAME)
-        cmake = CMake(self.settings)
-        if self.settings.os == "Windows":
-            self.run("IF not exist _build mkdir _build")
-        else:
-            self.run("mkdir _build")
-        cd_build = "cd _build"
-        CMAKE_OPTIONALS = ""
-        if self.options.shared == False:
-            CMAKE_OPTIONALS += "-DBUILD_SHARED_LIBS=OFF"
-        else:
-            CMAKE_OPTIONALS += "-DBUILD_SHARED_LIBS=ON"
-        self.run("%s && cmake .. -DPROJ4_TESTS=OFF -DCMAKE_INSTALL_PREFIX=../%s %s %s" % (cd_build, self.INSTALL_DIR, cmake.command_line, CMAKE_OPTIONALS))
-        self.run("%s && cmake --build . %s" % (cd_build, cmake.build_config))
-        self.run("%s && cmake --build . --target install %s" % (cd_build, cmake.build_config))
+            self.run("cd %s && ../%s/configure %s"
+                    % (self.ZIP_FOLDER_NAME, self.ZIP_FOLDER_NAME, " ".join(config_args)))
+            self.run("cd %s && make" % (self.ZIP_FOLDER_NAME))
+            self.run("cd %s && make install" % (self.ZIP_FOLDER_NAME))
 
     def package(self):
-        self.copy("FindPROJ4.cmake", ".", ".")
-        self.copy("*", dst=".", src=self.INSTALL_DIR)
+        self.copy("FindProj.cmake", ".", ".")
 
     def package_info(self):
         if self.settings.os == "Windows":

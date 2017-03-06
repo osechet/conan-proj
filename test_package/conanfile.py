@@ -1,12 +1,13 @@
-from conans import ConanFile, CMake
+
 import os
+from conans import ConanFile, CMake
 
-channel = os.getenv("CONAN_CHANNEL", "testing")
-username = os.getenv("CONAN_USERNAME", "bilke")
+CHANNEL = os.getenv("CONAN_CHANNEL", "testing")
+USERNAME = os.getenv("CONAN_USERNAME", "osechet")
 
-class TiffReuseConan(ConanFile):
+class TestProjConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
-    requires = "proj/4.9.2@%s/%s" % (username, channel)
+    requires = "proj/4.9.2@%s/%s" % (USERNAME, CHANNEL)
     generators = "cmake"
 
     def build(self):
