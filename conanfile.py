@@ -1,12 +1,15 @@
 
 import os
+import re
+from os import close, remove
+from shutil import move
+from tempfile import mkstemp
 from conans import ConanFile, AutoToolsBuildEnvironment, tools
 from conans.tools import download, unzip
 
 class ProjConan(ConanFile):
     name = "proj"
     version = "4.9.2"
-    generators = "cmake"
     settings = "os", "compiler", "build_type", "arch"
     options = {"shared": [True, False]}
     default_options = "shared=True"
@@ -29,6 +32,19 @@ class ProjConan(ConanFile):
         os.unlink(datum)
 
     def build(self):
+        if self.settings.os == "Windows":
+            self._build_win()
+        else:
+            self._build_unix()
+
+    def _build_win(self):
+        self._replace_in_file("%s/nmake.opt" % (self.ZIP_FOLDER_NAME),
+                              r"^INSTDIR=.*",
+                              "INSTDIR=%s" % (self.package_folder.replace('\\', r'\\')))
+        self.run("cd %s && nmake /f makefile.vc" % (self.ZIP_FOLDER_NAME))
+        self.run("cd %s && nmake /f makefile.vc install" % (self.ZIP_FOLDER_NAME))
+
+    def _build_unix(self):
         env_build = AutoToolsBuildEnvironment(self)
         with tools.environment_append(env_build.vars):
             config_args = ["--prefix %s" % self.package_folder]
@@ -42,7 +58,7 @@ class ProjConan(ConanFile):
                 self.run("chmod +x %s/install-sh" % self.ZIP_FOLDER_NAME)
 
             self.run("cd %s && ../%s/configure %s"
-                    % (self.ZIP_FOLDER_NAME, self.ZIP_FOLDER_NAME, " ".join(config_args)))
+                     % (self.ZIP_FOLDER_NAME, self.ZIP_FOLDER_NAME, " ".join(config_args)))
             self.run("cd %s && make" % (self.ZIP_FOLDER_NAME))
             self.run("cd %s && make install" % (self.ZIP_FOLDER_NAME))
 
@@ -57,3 +73,13 @@ class ProjConan(ConanFile):
                 self.cpp_info.libs = ["proj_4_9"]
         else:
             self.cpp_info.libs = ["proj"]
+
+    def _replace_in_file(self, file_path, pattern, subst):
+        file_handler, abs_path = mkstemp()
+        with open(abs_path, 'w') as new_file:
+            with open(file_path) as old_file:
+                for line in old_file:
+                    new_file.write(re.sub(pattern, subst, line))
+        close(file_handler)
+        remove(file_path)
+        move(abs_path, file_path)
